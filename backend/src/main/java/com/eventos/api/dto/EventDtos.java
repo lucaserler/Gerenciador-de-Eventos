@@ -1,0 +1,3 @@
+package com.eventos.api.dto;
+import javax.validation.constraints.*; import java.time.LocalDate;
+public class EventDtos { public static class Create { @NotBlank public String name; @NotNull public LocalDate date; @NotBlank public String location; public String imageUrl; } public static class Update { @NotNull public LocalDate date; @NotBlank public String location; } public static class View { public Long id; public String name,location,imageUrl; public LocalDate date; public View(Long id,String name,LocalDate date,String location,String imageUrl){this.id=id;this.name=name;this.date=date;this.location=location;this.imageUrl=imageUrl;} } }

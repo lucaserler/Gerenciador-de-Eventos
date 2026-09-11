@@ -1,0 +1,3 @@
+package com.eventos.api.controller;
+import com.eventos.api.dto.AuthDtos.*; import com.eventos.api.service.AuthService; import org.springframework.http.*; import org.springframework.web.bind.annotation.*; import javax.validation.Valid;
+@RestController @RequestMapping("/api/auth") public class AuthController { private final AuthService service; public AuthController(AuthService service){this.service=service;} @PostMapping("/register") @ResponseStatus(HttpStatus.CREATED) public void register(@Valid @RequestBody Register body){service.register(body);}@PostMapping("/login") public Token login(@Valid @RequestBody Login body){return service.login(body);} }

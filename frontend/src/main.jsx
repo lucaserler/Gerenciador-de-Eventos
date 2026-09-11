@@ -1,0 +1,36 @@
+import React, { useEffect, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import './styles.css';
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const saved = JSON.parse(localStorage.getItem('eventhub-session') || 'null');
+const request = async (path, method = 'GET', body, token) => {
+  const res = await fetch(`${API}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Não foi possível concluir a operação.');
+  return res.status === 204 ? null : res.json();
+};
+
+function Auth({ onLogin }) {
+  const [register, setRegister] = useState(false), [form, setForm] = useState({ name: '', email: '', password: '', confirm: '', remember: false }), [notice, setNotice] = useState(''), [loading, setLoading] = useState(false);
+  const change = e => setForm({ ...form, [e.target.name]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
+  const submit = async e => { e.preventDefault(); setNotice('');
+    if (register && form.password !== form.confirm) return setNotice('As senhas não coincidem.');
+    setLoading(true); try {
+      if (register) { await request('/auth/register', 'POST', { name: form.name, email: form.email, password: form.password }); setNotice('Cadastro realizado com sucesso. Agora você já pode entrar.'); setRegister(false); }
+      else { const session = await request('/auth/login', 'POST', { email: form.email, password: form.password }); if (form.remember) localStorage.setItem('eventhub-credentials', JSON.stringify({ email: form.email, password: form.password })); else localStorage.removeItem('eventhub-credentials'); onLogin(session); }
+    } catch (err) { setNotice(err.message); } finally { setLoading(false); }
+  };
+  useEffect(() => { const c = JSON.parse(localStorage.getItem('eventhub-credentials') || 'null'); if (c) setForm(v => ({ ...v, ...c, remember: true })); }, []);
+  return <main className="auth"><section className="brand"><span>✦ EVENTHUB</span><h1>Eventos inesquecíveis começam aqui.</h1><p>Centralize os seus eventos, mantenha cada detalhe sob controle e ofereça experiências melhores.</p></section><section className="card"><p className="eyebrow">ÁREA DO ADMINISTRADOR</p><h2>{register ? 'Crie sua conta' : 'Boas-vindas de volta'}</h2><p className="sub">{register ? 'Preencha seus dados para começar.' : 'Entre para gerir seus eventos.'}</p><form onSubmit={submit}>{register && <label>Nome do administrador<input name="name" required value={form.name} onChange={change} placeholder="Seu nome" /></label>}<label>Email do administrador<input name="email" type="email" required value={form.email} onChange={change} placeholder="nome@empresa.com" /></label><label>Senha<input name="password" type="password" minLength="6" required value={form.password} onChange={change} placeholder="••••••••" /></label>{register && <label>Confirmar senha<input name="confirm" type="password" minLength="6" required value={form.confirm} onChange={change} placeholder="••••••••" /></label>}{!register && <label className="check"><input name="remember" type="checkbox" checked={form.remember} onChange={change} /> Gravar senha para acesso rápido</label>}{notice && <p className={notice.includes('sucesso') ? 'success' : 'error'}>{notice}</p>}<button disabled={loading}>{loading ? 'Aguarde…' : register ? 'Cadastrar-se' : 'Entrar'}</button></form><p className="switch">{register ? 'Já tem uma conta?' : 'Ainda não possui acesso?'} <button onClick={() => { setRegister(!register); setNotice(''); }}>{register ? 'Entrar' : 'Cadastrar-se'}</button></p></section></main>;
+}
+
+function Home({ session, onLogout }) {
+  const [events, setEvents] = useState([]), [modal, setModal] = useState(null), [message, setMessage] = useState('');
+  const load = () => request('/events', 'GET', null, session.token).then(setEvents).catch(e => setMessage(e.message));
+  useEffect(load, []);
+  const remove = async id => { if (!confirm('Excluir este evento?')) return; await request(`/events/${id}`, 'DELETE', null, session.token); load(); };
+  return <main className="home"><header><div><span className="logo">✦ EVENTHUB</span><p>Olá, {session.name}</p></div><button className="ghost" onClick={onLogout}>Sair</button></header><section className="heading"><div><p className="eyebrow">PAINEL</p><h1>Seus eventos</h1><p>Organize e acompanhe todos os eventos da sua conta.</p></div><button onClick={() => setModal({})}>+ Adicionar evento</button></section>{message && <p className="error">{message}</p>}<section className="grid">{events.map(event => <article className="event" key={event.id}><img src={event.imageUrl || 'https://images.unsplash.com/photo-1507504031003-b417219a0fde?auto=format&fit=crop&w=900&q=80'} alt=""/><div className="event-body"><h3>{event.name}</h3><p>◷ {new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR')}</p><p>⌖ {event.location}</p><footer><button className="link" onClick={() => setModal(event)}>Editar data e local</button><button className="delete" onClick={() => remove(event.id)}>Excluir</button></footer></div></article>)}{!events.length && <div className="empty">Nenhum evento cadastrado ainda.<br/>Clique em “Adicionar evento” para criar o primeiro.</div>}</section>{modal && <EventModal event={modal} token={session.token} close={() => setModal(null)} done={() => { setModal(null); load(); }} />}</main>;
+}
+function EventModal({ event, token, close, done }) { const editing = Boolean(event.id); const [form, setForm] = useState({ name: event.name || '', date: event.date || '', location: event.location || '', imageUrl: event.imageUrl || '' }), [error, setError] = useState(''); const change = e => setForm({ ...form, [e.target.name]: e.target.value }); const save = async e => { e.preventDefault(); try { await request(editing ? `/events/${event.id}` : '/events', editing ? 'PATCH' : 'POST', editing ? { date: form.date, location: form.location } : form, token); done(); } catch (e) { setError(e.message); } }; return <div className="overlay"><form className="modal" onSubmit={save}><button className="x" type="button" onClick={close}>×</button><p className="eyebrow">EVENTO</p><h2>{editing ? 'Editar evento' : 'Adicionar evento'}</h2>{!editing && <><label>Nome do evento<input name="name" required value={form.name} onChange={change}/></label></>}<label>Data<input name="date" type="date" required value={form.date} onChange={change}/></label><label>Localização<input name="location" required value={form.location} onChange={change}/></label>{!editing && <label>Imagem (URL)<input name="imageUrl" type="url" value={form.imageUrl} onChange={change} placeholder="https://..."/></label>}{error && <p className="error">{error}</p>}<button>Salvar evento</button></form></div>; }
+function App() { const [session, setSession] = useState(saved); const login = s => { localStorage.setItem('eventhub-session', JSON.stringify(s)); setSession(s); }; const logout = () => { localStorage.removeItem('eventhub-session'); setSession(null); }; return session ? <Home session={session} onLogout={logout}/> : <Auth onLogin={login}/>; }
+createRoot(document.getElementById('root')).render(<App/>);

@@ -1,0 +1,1 @@
+package com.eventos.api.repository; import com.eventos.api.entity.Event; import org.springframework.data.jpa.repository.JpaRepository; import java.util.*; public interface EventRepository extends JpaRepository<Event,Long>{ List<Event> findAllByAdminIdOrderByDateAsc(Long adminId); Optional<Event> findByIdAndAdminId(Long id,Long adminId); }
