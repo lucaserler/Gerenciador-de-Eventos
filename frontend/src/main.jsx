@@ -7,7 +7,8 @@ const saved = JSON.parse(localStorage.getItem('eventhub-session') || 'null');
 const request = async (path, method = 'GET', body, token) => {
   const res = await fetch(`${API}${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || 'Não foi possível concluir a operação.');
-  return res.status === 204 ? null : res.json();
+  const text = await res.text();
+return text ? JSON.parse(text) : null;
 };
 
 function Auth({ onLogin }) {
